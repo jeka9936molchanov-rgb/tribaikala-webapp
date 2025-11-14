@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Карта квестов Байкала</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #071331 0%, #0f2746 100%);
+            color: #ffffff;
+            touch-action: none;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .legend {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(7, 19, 49, 0.95);
+            padding: 12px;
+            border-radius: 12px;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 180px;
+            backdrop-filter: blur(10px);
+        }
+
+        .legend h3 {
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: #60a5fa;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 11px;
+        }
+
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 6px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            flex-shrink: 0;
+        }
+
+        .quest-popup {
+            min-width: 200px;
+            max-width: 280px;
+        }
+
+        .quest-popup h4 {
+            color: #071331;
+            margin-bottom: 8px;
+            font-size: 15px;
+            line-height: 1.3;
+        }
+
+        .quest-popup p {
+            color: #374151;
+            font-size: 12px;
+            margin: 4px 0;
+            line-height: 1.4;
+        }
+
+        .quest-popup .reward {
+            color: #0ea5e9;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .quest-popup button {
+            background: #0ea5e9;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+            font-size: 14px;
+            font-weight: 600;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .quest-popup button:active {
+            background: #0284c7;
+            transform: scale(0.98);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(7, 19, 49, 0.95);
+            padding: 20px 40px;
+            border-radius: 12px;
+            z-index: 2000;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .spinner {
+            border: 3px solid rgba(96, 165, 250, 0.3);
+            border-top: 3px solid #60a5fa;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Leaflet custom styles */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .leaflet-popup-tip {
+            background: white;
+        }
+
+        .leaflet-container {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        /* Улучшенная видимость на мобильных */
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        .leaflet-control-zoom a {
+            background-color: rgba(7, 19, 49, 0.9) !important;
+            color: #60a5fa !important;
+            border: none !important;
+            width: 36px !important;
+            height: 36px !important;
+            line-height: 36px !important;
+            font-size: 20px !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background-color: rgba(15, 39, 70, 0.95) !important;
+        }
+
+        /* Скрыть attribution на маленьких экранах */
+        @media (max-width: 480px) {
+            .leaflet-control-attribution {
+                font-size: 8px;
+                background: rgba(7, 19, 49, 0.7) !important;
+                color: rgba(255, 255, 255, 0.6) !important;
+            }
+            
+            .legend {
+                max-width: 150px;
+                padding: 10px;
+            }
+            
+            .legend h3 {
+                font-size: 12px;
+            }
+            
+            .legend-item {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="legend">
+        <h3>🗺 Категории</h3>
+        <div id="legend-items"></div>
+    </div>
+
+    <!-- Панель администратора -->
+    <div class="admin-panel" id="adminPanel" style="display: none;">
+        <button class="admin-btn" onclick="openCreateQuestModal()">➕ Создать квест</button>
+    </div>
+
+    <!-- Модальное окно создания квеста -->
+    <div class="modal" id="createQuestModal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeCreateQuestModal()">&times;</span>
+            <h3>➕ Создать новый квест</h3>
+            <form id="createQuestForm">
+                <div class="form-group">
+                    <label for="questTitle">Название:</label>
+                    <input type="text" id="questTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="questDescription">Описание:</label>
+                    <textarea id="questDescription" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="questCategory">Категория:</label>
+                    <select id="questCategory" required>
+                        <option value="1">🌲 Природа</option>
+                        <option value="2">🏛️ Культура</option>
+                        <option value="3">📸 Фото</option>
+                        <option value="4">⚽ Спорт</option>
+                        <option value="5">🌊 Байкал</option>
+                        <option value="6">🏙️ Город</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="questReward">Награда (₿):</label>
+                    <input type="number" id="questReward" min="1" max="1000" required>
+                </div>
+                <div class="form-group">
+                    <label>Местоположение:</label>
+                    <button type="button" onclick="setLocationFromMap()">📍 Установить по карте</button>
+                    <div id="locationInfo"></div>
+                    <input type="hidden" id="questLat">
+                    <input type="hidden" id="questLng">
+                </div>
+                <button type="submit">✅ Создать квест</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>Загрузка квестов...</div>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // Получить user_id из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+
+        // Получить API URL динамически
+        function getApiUrl() {
+            // Если указан явный параметр API URL в адресе
+            const apiUrlParam = urlParams.get('api_url');
+            if (apiUrlParam) {
+                return apiUrlParam;
+            }
+            
+            // Если на GitHub Pages - используем переменную окружения или параметр из localStorage
+            if (window.location.hostname === 'jeka9936molchanov-rgb.github.io' ||
+                window.location.hostname.includes('.github.io')) {
+                // Попытаться получить из localStorage
+                const savedUrl = localStorage.getItem('tribaikala_api_url');
+                if (savedUrl) {
+                    return savedUrl;
+                }
+                // По умолчанию для GitHub Pages - используем локальный backend
+                // Это работает если открыть WebApp через Telegram, который прокси запросы
+                return 'http://wallet_bot:8000/api/v1';
+            }
+            
+            // Для локальной разработки (браузер на localhost)
+            // Проверяем, запущен ли через Telegram WebApp
+            if (window.Telegram && window.Telegram.WebApp) {
+                // Если запущен через Telegram WebApp, используем URL из настроек
+                return 'http://quests_bot:8001';
+            }
+            
+            // Для локальной разработки в браузере
+            return 'http://localhost:8001';
+        }
+        
+        const apiUrl = getApiUrl();
+        console.log('Using API URL:', apiUrl);
+
+        // Глобальная переменная для отслеживания статуса администратора
+        let isAdmin = false;
+
+        // Категории квестов (соответствуют БД)
+        const categories = {
+            1: { name: 'Природа', emoji: '🌲', color: '#10B981' },
+            2: { name: 'Культура', emoji: '🏛️', color: '#8B5CF6' },
+            3: { name: 'Фото', emoji: '📸', color: '#F59E0B' },
+            4: { name: 'Спорт', emoji: '⚽', color: '#EF4444' },
+            5: { name: 'Байкал', emoji: '🌊', color: '#0EA5E9' },
+            6: { name: 'Город', emoji: '🏙️', color: '#6366F1' }
+        };
+
+        // Инициализация карты (центр на озере Байкал)
+        const map = L.map('map', {
+            zoomControl: true,
+            attributionControl: true,
+            tap: true,
+            touchZoom: true,
+            dragging: true,
+            scrollWheelZoom: true, // Разрешить масштабирование колесом мыши
+            doubleClickZoom: true, // Разрешить масштабирование двойным кликом
+            boxZoom: true, // Разрешить масштабирование выделением области
+            keyboard: true, // Разрешить управление с клавиатуры
+            inertia: true, // Включить инерцию при перетаскивании
+            inertiaDeceleration: 3000, // Замедление инерции
+            inertiaMaxSpeed: 1500, // Максимальная скорость инерции
+            zoomAnimation: true, // Анимация масштабирования
+            fadeAnimation: true, // Анимация появления тайлов
+            markerZoomAnimation: true // Анимация маркеров при масштабировании
+        }).setView([53.5, 108.0], 8);
+
+        // Тёмная тема карты с улучшенной детализацией
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+            subdomains: 'abcd',
+            maxZoom: 19, // Максимальный уровень зума
+            minZoom: 5,  // Минимальный уровень зума
+            tileSize: 256, // Размер тайла
+            zoomOffset: 0, // Смещение зума
+            detectRetina: true // Поддержка retina дисплеев
+        }).addTo(map);
+
+        // Создать легенду
+        function createLegend() {
+            const legendItems = document.getElementById('legend-items');
+            Object.values(categories).forEach(cat => {
+                const item = document.createElement('div');
+                item.className = 'legend-item';
+                item.innerHTML = `
+                    <div class="legend-color" style="background-color: ${cat.color}"></div>
+                    <span>${cat.emoji} ${cat.name}</span>
+                `;
+                legendItems.appendChild(item);
+            });
+        }
+
+        // Создать иконку маркера
+        function createMarkerIcon(category) {
+            const cat = categories[category] || categories[5];
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `
+                    <div style="
+                        background-color: ${cat.color};
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 18px;
+                        border: 3px solid rgba(255, 255, 255, 0.8);
+                        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+                    ">${cat.emoji}</div>
+                `,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+        }
+
+        // Добавить квест на карту
+        function addQuestMarker(quest) {
+            const cat = categories[quest.category_id] || categories[5];
+            const marker = L.marker([quest.lat, quest.lng], {
+                icon: createMarkerIcon(quest.category_id)
+            }).addTo(map);
+
+            // Формирование содержимого popup с учетом прав администратора
+            let popupContent = `
+                <div class="quest-popup">
+                    <h4>${cat.emoji} ${quest.title}</h4>
+                    <p>${quest.description.substring(0, 100)}${quest.description.length > 100 ? '...' : ''}</p>
+                    <p class="reward">Награда: ${quest.reward_amount}₿</p>
+                    <button onclick="acceptQuest(${quest.id})">✅ Принять квест</button>
+            `;
+            
+            // Добавляем кнопку удаления для администраторов
+            if (isAdmin) {
+                popupContent += `<button onclick="deleteQuest(${quest.id})" style="background: #ef4444; margin-top: 8px;">🗑️ Удалить квест</button>`;
+            }
+            
+            popupContent += `</div>`;
+
+            marker.bindPopup(popupContent, {
+                maxWidth: 300,
+                className: 'quest-popup-wrapper',
+                closeButton: true,
+                autoPan: true,
+                autoPanPadding: [50, 50]
+            });
+        }
+
+        // Принять квест
+        window.acceptQuest = function(questId) {
+            try {
+                console.log('Accepting quest:', questId);
+                tg.sendData(JSON.stringify({
+                    action: 'accept_quest',
+                    quest_id: questId,
+                    user_id: userId
+                }));
+                
+                // Небольшая задержка перед закрытием для обработки
+                setTimeout(() => {
+                    tg.close();
+                }, 300);
+            } catch (error) {
+                console.error('Error accepting quest:', error);
+                alert('Ошибка при принятии квеста. Попробуйте снова.');
+            }
+        };
+        
+        // Удалить квест
+        window.deleteQuest = async function(questId) {
+            if (!confirm('Вы уверены, что хотите удалить этот квест?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiUrl}/api/quests/delete`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        quest_id: questId
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('Квест успешно удален!');
+                        // Перезагрузить страницу для обновления списка квестов
+                        location.reload();
+                    } else {
+                        alert(`Ошибка удаления квеста: ${result.error}`);
+                    }
+                } else {
+                    const error = await response.json();
+                    alert(`Ошибка удаления квеста: ${error.error || 'Неизвестная ошибка'}`);
+                }
+            } catch (error) {
+                console.error('Error deleting quest:', error);
+                alert('Ошибка при удалении квеста. Попробуйте снова.');
+            }
+        };
+
+        // Загрузить квесты с API
+        async function loadQuests() {
+            try {
+                console.log('Loading quests for user:', userId);
+                
+                // Загрузить квесты
+                const response = await fetch(`${apiUrl}/api/quests?user_id=${userId}&limit=50`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const quests = await response.json();
+                console.log('Loaded quests:', quests.length);
+                
+                // Добавить квесты на карту
+                quests.forEach(quest => {
+                    const questData = {
+                        id: quest.id,
+                        title: quest.title,
+                        description: quest.description,
+                        category_id: quest.category_id,
+                        lat: quest.lat,
+                        lng: quest.lng,
+                        reward_amount: quest.reward_amount
+                    };
+                    addQuestMarker(questData);
+                });
+                
+                document.getElementById('loading').style.display = 'none';
+                
+                // Центрировать карту на квестах
+                if (quests.length > 0) {
+                    const bounds = L.latLngBounds(quests.map(q => [q.lat, q.lng]));
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                } else {
+                    // Если квестов нет, показать центр Байкала
+                    map.setView([53.5, 108.0], 8);
+                }
+                
+            } catch (error) {
+                console.error('Error loading quests:', error);
+                document.getElementById('loading').innerHTML = '<div class="spinner"></div><div>Ошибка загрузки квестов</div>';
+                
+                // Fallback на mock данные для демонстрации
+                const mockQuests = [
+                    {
+                        id: 1,
+                        title: 'Фото у мыса Бурхан',
+                        description: 'Сделай фото на фоне знаменитой скалы Шаманка',
+                        category_id: 3,
+                        lat: 53.1925,
+                        lng: 107.3333,
+                        reward_amount: 25
+                    },
+                    {
+                        id: 2,
+                        title: 'Чистые берега',
+                        description: 'Собери мусор на берегу Байкала и сделай фото',
+                        category_id: 1,
+                        lat: 53.2,
+                        lng: 107.4,
+                        reward_amount: 30
+                    },
+                    {
+                        id: 3,
+                        title: 'Листвянка',
+                        description: 'Посети музей Байкала в Листвянке',
+                        category_id: 2,
+                        lat: 51.8547,
+                        lng: 104.8656,
+                        reward_amount: 20
+                    }
+                ];
+                
+                console.log('Using mock data');
+                setTimeout(() => {
+                    mockQuests.forEach(quest => addQuestMarker(quest));
+                    document.getElementById('loading').style.display = 'none';
+                    
+                    if (mockQuests.length > 0) {
+                        const bounds = L.latLngBounds(mockQuests.map(q => [q.lat, q.lng]));
+                        map.fitBounds(bounds, { padding: [50, 50] });
+                    }
+                }, 1000);
+            }
+        }
+
+        // Получить геолокацию пользователя
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    
+                    console.log('User location:', userLat, userLng);
+                    
+                    // Добавить маркер пользователя
+                    L.marker([userLat, userLng], {
+                        icon: L.divIcon({
+                            className: 'user-marker',
+                            html: '<div style="background: #3b82f6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);"></div>',
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        })
+                    }).addTo(map).bindPopup('📍 Вы здесь');
+                    
+                    // Центрировать на пользователе только если квестов нет
+                    setTimeout(() => {
+                        if (map.getBounds().getSouthWest().equals(map.getBounds().getNorthEast())) {
+                            map.setView([userLat, userLng], 12);
+                        }
+                    }, 1500);
+                },
+                (error) => {
+                    console.log('Geolocation error:', error.message);
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        // Инициализация
+        createLegend();
+        loadQuests();
+
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            map.invalidateSize();
+        });
+
+        // Логирование для отладки
+        console.log('Map initialized');
+        console.log('Telegram WebApp version:', tg.version);
+        console.log('User ID:', userId);
+        
+        // Проверка, является ли пользователь администратором
+        async function checkAdminStatus() {
+            try {
+                const response = await fetch(`${apiUrl}/api/admin/check?user_id=${userId}`);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.is_admin) {
+                        isAdmin = true; // Установка глобальной переменной
+                        document.getElementById('adminPanel').style.display = 'block';
+                        console.log('User is admin');
+                    } else {
+                        isAdmin = false; // Установка глобальной переменной
+                        console.log('User is not admin');
+                    }
+                } else {
+                    isAdmin = false; // Установка глобальной переменной
+                    console.log('Failed to check admin status');
+                }
+            } catch (error) {
+                isAdmin = false; // Установка глобальной переменной
+                console.error('Error checking admin status:', error);
+            }
+        }
+        
+        // Открыть модальное окно создания квеста
+        window.openCreateQuestModal = function() {
+            if (!isAdmin) {
+                alert('Только администраторы могут создавать квесты');
+                return;
+            }
+            document.getElementById('createQuestModal').style.display = 'flex';
+            document.getElementById('createQuestForm').reset();
+            document.getElementById('locationInfo').textContent = '';
+            document.getElementById('questLat').value = '';
+            document.getElementById('questLng').value = '';
+        };
+        
+        // Закрыть модальное окно создания квеста
+        window.closeCreateQuestModal = function() {
+            document.getElementById('createQuestModal').style.display = 'none';
+        };
+        
+        // Установить местоположение из карты
+        window.setLocationFromMap = function() {
+            // Временно отключить обработчики клика на маркерах
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Marker) {
+                    layer.off('click');
+                }
+            });
+            
+            // Добавить обработчик клика на карту
+            const clickHandler = function(e) {
+                const lat = e.latlng.lat.toFixed(6);
+                const lng = e.latlng.lng.toFixed(6);
+                
+                document.getElementById('questLat').value = lat;
+                document.getElementById('questLng').value = lng;
+                document.getElementById('locationInfo').textContent = `📍 Координаты: ${lat}, ${lng}`;
+                
+                // Удалить временный маркер, если есть
+                if (window.tempMarker) {
+                    map.removeLayer(window.tempMarker);
+                }
+                
+                // Добавить временный маркер
+                window.tempMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'temp-marker',
+                        html: '<div style="background: #f59e0b; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);"></div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    })
+                }).addTo(map);
+                
+                // Удалить обработчик клика
+                map.off('click', clickHandler);
+                
+                // Восстановить обработчики клика на маркерах
+                setTimeout(() => {
+                    map.eachLayer(function(layer) {
+                        if (layer instanceof L.Marker && layer !== window.tempMarker) {
+                            layer.on('click', function(e) {
+                                // Реализация обработчика клика на маркере
+                            });
+                        }
+                    });
+                }, 100);
+            };
+            
+            map.on('click', clickHandler);
+            
+            // Показать инструкцию
+            document.getElementById('locationInfo').textContent = '👆 Кликните на карту для выбора местоположения';
+        };
+        
+        // Обработчик отправки формы создания квеста
+        document.getElementById('createQuestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!isAdmin) {
+                alert('Только администраторы могут создавать квесты');
+                return;
+            }
+            
+            const title = document.getElementById('questTitle').value;
+            const description = document.getElementById('questDescription').value;
+            const category = document.getElementById('questCategory').value;
+            const reward = document.getElementById('questReward').value;
+            const lat = document.getElementById('questLat').value;
+            const lng = document.getElementById('questLng').value;
+            
+            // Проверка заполненности полей
+            if (!title || !description || !category || !reward || !lat || !lng) {
+                alert('Пожалуйста, заполните все поля и выберите местоположение');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiUrl}/api/admin/create_quest`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        title: title,
+                        description: description,
+                        category_id: parseInt(category),
+                        reward_amount: parseInt(reward),
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng)
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('Квест успешно создан!');
+                    closeCreateQuestModal();
+                    
+                    // Добавить новый квест на карту
+                    const questData = {
+                        id: result.quest_id,
+                        title: title,
+                        description: description,
+                        category_id: parseInt(category),
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        reward_amount: parseInt(reward)
+                    };
+                    addQuestMarker(questData);
+                    
+                    // Обновить границы карты
+                    const bounds = map.getBounds();
+                    bounds.extend([parseFloat(lat), parseFloat(lng)]);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                } else {
+                    const error = await response.json();
+                    alert(`Ошибка создания квеста: ${error.detail || 'Неизвестная ошибка'}`);
+                }
+            } catch (error) {
+                console.error('Error creating quest:', error);
+                alert('Ошибка при создании квеста. Попробуйте снова.');
+            }
+        });
+        
+        // Проверить статус администратора при загрузке
+        checkAdminStatus();
+    </script>
+</body>
+</html>
